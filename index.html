@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>江山筑城</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* 布局：全屏 3D 画布，四周悬浮墨色漆面板；顶部为城况，底部为营造工具。单一夜墨主题，不随系统明暗切换 */
+:root {
+  --ink: #121718;
+  --panel: rgba(18, 24, 25, 0.84);
+  --panel-solid: #182022;
+  --paper: #efe6d2;
+  --muted: #a99f88;
+  --line: rgba(239, 230, 210, 0.14);
+  --cinnabar: #c4462f;
+  --gold: #d6a84c;
+  --jade: #79b48f;
+  --warn: #e07a5f;
+  --font-display: "ZCOOL XiaoWei", "STKaiti", "KaiTi", "Songti SC", serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --r: 6px;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--ink); color: var(--paper); font: 14px/1.5 var(--font-body); overflow: hidden; -webkit-font-smoothing: antialiased; }
+#app { position: fixed; inset: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+button { font: inherit; color: inherit; }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+
+/* 顶栏 */
+#top { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(to bottom, rgba(12,16,17,.88), rgba(12,16,17,.55) 70%, transparent); pointer-events: none; }
+#top > * { pointer-events: auto; }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: 6px; }
+.seal { width: 34px; height: 34px; display: grid; place-items: center; background: var(--cinnabar); color: #fbefe0; font: 22px/1 var(--font-display); border-radius: 3px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); }
+.brand h1 { margin: 0; font: 22px/1 var(--font-display); letter-spacing: .12em; color: var(--paper); }
+.stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.stat { display: flex; align-items: baseline; gap: 6px; padding: 5px 10px; border-radius: var(--r); background: rgba(0,0,0,.28); border: 1px solid var(--line); }
+.stat span { color: var(--muted); font-size: 12px; letter-spacing: .08em; }
+.stat b { font-weight: 500; font-variant-numeric: tabular-nums; min-width: 2.2em; }
+.stat.coin b { color: var(--gold); }
+.stat small { color: var(--jade); font-size: 11px; font-variant-numeric: tabular-nums; transition: color .6s; }
+.stat small.flash { color: var(--gold); }
+.stat.warn b { color: var(--warn); }
+.date { font: 16px/1 var(--font-display); letter-spacing: .1em; color: var(--paper); display: flex; gap: 8px; align-items: baseline; }
+.date small { color: var(--muted); font-size: 13px; }
+.spacer { flex: 1; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: rgba(0,0,0,.28); }
+.seg button { background: none; border: 0; padding: 5px 10px; cursor: pointer; color: var(--muted); font-variant-numeric: tabular-nums; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: rgba(214,168,76,.18); color: var(--gold); }
+.seg button:hover { color: var(--paper); }
+
+/* 目标 */
+#goals { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(var(--top-h, 60px) + 6px); width: 210px; padding: 10px 12px; }
+#goals h2, #info h2 { margin: 0 0 6px; font: 17px/1.2 var(--font-display); letter-spacing: .1em; }
+#goal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+#goal-list li { display: flex; gap: 6px; align-items: baseline; }
+#goal-list .tick { color: var(--muted); width: 1em; }
+#goal-list .gp { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+#goal-list li.done { color: var(--jade); }
+#goal-list li.done .tick { color: var(--jade); }
+
+/* 详情 */
+#info { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(var(--top-h, 60px) + 6px); width: 250px; padding: 12px 14px; }
+#ledger { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(var(--top-h, 60px) + 6px); width: 300px; padding: 12px 14px; max-height: calc(100% - var(--top-h, 60px) - 150px); overflow-y: auto; }
+#ledger h2 { margin: 0 0 8px; font: 17px/1.2 var(--font-display); letter-spacing: .1em; }
+#ledger h3 { margin: 12px 0 4px; font: 14px/1.2 var(--font-display); letter-spacing: .08em; color: var(--gold); }
+#ledger .close { position: absolute; top: 8px; right: 8px; background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; line-height: 1; padding: 4px 6px; }
+#ledger table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+#ledger th { color: var(--muted); font-weight: 400; text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+#ledger th:first-child, #ledger td:first-child { text-align: left; }
+#ledger td { text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+#ledger .pos { color: var(--jade); } #ledger .neg { color: var(--warn); }
+#ledger .total td { font-weight: 700; border-bottom: 0; }
+#ledger .note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+#info-sub { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+#info .close { position: absolute; top: 8px; right: 8px; background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; line-height: 1; padding: 4px 6px; }
+#info .row { display: flex; justify-content: space-between; padding: 4px 0; border-top: 1px solid var(--line); font-size: 13px; }
+#info .row span { color: var(--muted); }
+#info .row b { font-weight: 500; font-variant-numeric: tabular-nums; }
+#info .row.ok b { color: var(--jade); }
+#info .row.bad b { color: var(--warn); }
+#info .needs { margin-top: 8px; padding: 8px 10px; border-radius: var(--r); background: rgba(196,70,47,.12); border: 1px solid rgba(196,70,47,.35); font-size: 12px; }
+#info .needs.ok { background: rgba(121,180,143,.12); border-color: rgba(121,180,143,.35); color: var(--jade); }
+#info .needs span { color: var(--paper); }
+#info .needs ul { margin: 4px 0 0; padding-left: 1.1em; color: var(--muted); }
+
+/* 底部工具栏 */
+#bottom { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 12px) max(16px, env(safe-area-inset-left, 0px));
+  pointer-events: none; }
+#bottom > * { pointer-events: auto; }
+#hint { max-width: min(720px, 100%); padding: 6px 12px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+#hint b { color: var(--paper); font: 15px/1.2 var(--font-display); letter-spacing: .08em; }
+#hint .hcost { color: var(--gold); font-variant-numeric: tabular-nums; }
+#tools { display: flex; gap: 4px; padding: 6px; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.tool { position: relative; flex: 0 0 auto; width: 58px; padding: 6px 2px 5px; display: flex; flex-direction: column; align-items: center; gap: 1px; background: none; border: 1px solid transparent; border-radius: var(--r); cursor: pointer; transition: background .15s, border-color .15s; }
+.tool:hover { background: rgba(239,230,210,.06); }
+.tool.active { background: rgba(196,70,47,.2); border-color: rgba(196,70,47,.7); }
+.tool .glyph { width: 34px; height: 34px; display: grid; place-items: center; font: 22px/1 var(--font-display); color: var(--paper); border: 1px solid var(--line); border-radius: 50%; background: rgba(0,0,0,.25); }
+.tool.active .glyph { background: var(--cinnabar); border-color: var(--cinnabar); color: #fbefe0; }
+.tool .tname { font-size: 12px; }
+.tool .tcost { font-size: 11px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.tool kbd { position: absolute; top: 3px; right: 5px; font: 10px/1 var(--font-body); color: var(--muted); }
+
+/* 消息 */
+#toasts { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-width: min(340px, calc(100% - 32px)); }
+.toast { padding: 7px 12px; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--muted); font-size: 13px; animation: tin .25s ease-out; transition: opacity .5s, transform .5s; }
+.toast.coin { border-left-color: var(--gold); }
+.toast.good { border-left-color: var(--jade); }
+.toast.warn { border-left-color: var(--warn); }
+.toast.out { opacity: 0; transform: translateX(-10px); }
+@keyframes tin { from { opacity: 0; transform: translateY(6px); } }
+#ctip { position: fixed; left: 0; top: 0; padding: 3px 8px; border-radius: 4px; background: var(--panel-solid); border: 1px solid var(--line); font-size: 12px; color: var(--gold); pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; z-index: 5; }
+#ctip.bad { color: var(--warn); }
+
+/* 开场与胜利 */
+.modal { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(8,10,11,.55); z-index: 10; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
+.card { width: min(520px, 100%); max-height: calc(100% - 32px); overflow-y: auto; padding: 24px 26px; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.card .head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.card .seal { width: 48px; height: 48px; font-size: 30px; }
+.card h2 { margin: 0; font: 30px/1.1 var(--font-display); letter-spacing: .14em; text-wrap: balance; }
+.card .tag { margin: 4px 0 0; color: var(--muted); font-size: 13px; letter-spacing: .06em; }
+.card p { margin: 0 0 10px; color: var(--paper); max-width: 62ch; }
+.card h3 { margin: 16px 0 6px; font: 16px/1.2 var(--font-display); letter-spacing: .1em; color: var(--gold); }
+.chain { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 13px; color: var(--muted); }
+.chain b { color: var(--paper); font-weight: 500; padding: 2px 8px; border: 1px solid var(--line); border-radius: 3px; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; color: var(--muted); }
+.keys kbd { color: var(--paper); font: 12px var(--font-body); padding: 1px 6px; border: 1px solid var(--line); border-radius: 3px; background: rgba(0,0,0,.3); justify-self: start; }
+.primary { margin-top: 18px; width: 100%; padding: 10px; background: var(--cinnabar); color: #fbefe0; border: 0; border-radius: var(--r); font: 18px/1.2 var(--font-display); letter-spacing: .3em; cursor: pointer; }
+.primary:hover { filter: brightness(1.08); }
+.secondary { margin-top: 8px; width: 100%; padding: 8px; background: none; color: var(--muted); border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; }
+.secondary:hover { color: var(--paper); }
+.side { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(var(--top-h, 60px) + 6px); width: 320px; padding: 12px 14px; max-height: calc(100% - var(--top-h, 60px) - 150px); overflow-y: auto; }
+.side h2 { margin: 0 0 8px; font: 17px/1.2 var(--font-display); letter-spacing: .1em; }
+.side .close { position: absolute; top: 8px; right: 8px; background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; line-height: 1; padding: 4px 6px; }
+.side p, .side .note { margin: 6px 0; font-size: 12px; color: var(--muted); }
+.trow { display: grid; grid-template-columns: 3.2em 1fr; gap: 4px 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.trow .gname { font: 15px/1 var(--font-display); }
+.trow .tinfo { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.trow .tctl { grid-column: 1 / -1; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.mini { background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 4px; color: var(--muted); padding: 2px 8px; cursor: pointer; font-size: 12px; }
+.mini[aria-pressed="true"] { background: rgba(214,168,76,.2); color: var(--gold); border-color: rgba(214,168,76,.5); }
+.mini.exp[aria-pressed="true"] { background: rgba(121,180,143,.2); color: var(--jade); border-color: rgba(121,180,143,.5); }
+.mini.imp[aria-pressed="true"] { background: rgba(196,70,47,.2); color: #f0a08f; border-color: rgba(196,70,47,.5); }
+.keep { font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: center; color: var(--paper); }
+.chainrow { padding: 8px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+.chainrow .cdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.chainrow .path { color: var(--paper); }
+.chainrow .nums { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chainrow.bad .nums { color: var(--warn); }
+.problems { margin: 6px 0 0; padding-left: 1.1em; font-size: 12px; color: var(--warn); }
+.goal-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.goal-deadline { margin: 6px 0 0; font-size: 12px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.goal-deadline.urgent { color: var(--warn); }
+.won-stats { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 10px 0 4px; font-size: 13px; color: var(--muted); }
+.won-stats b { color: var(--paper); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ai-chip { background: rgba(196,70,47,.85); color: #fbefe0; border: 0; border-radius: var(--r); padding: 5px 10px; cursor: pointer; font-size: 13px; animation: pulse 2s infinite; }
+@keyframes pulse { 50% { opacity: .75; } }
+.tsep { flex: 0 0 1px; align-self: stretch; margin: 6px 3px; background: var(--line); }
+
+@media (max-width: 1440px) { .brand h1 { display: none; } #top { gap: 8px 10px; } }
+@media (max-width: 760px) {
+  .brand h1 { display: none; }
+  #goals { display: none; }
+  .side { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); max-height: 50%; }
+  #ledger { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); max-height: 50%; }
+  #info { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); max-height: 45%; overflow-y: auto; }
+  #hint { display: none; }
+  .tool { width: 54px; }
+  .tool kbd { display: none; }
+  #toasts { bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); }
+  .stat { padding: 3px 7px; }
+}
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; transition: none; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="gl" aria-label="城池地图"></canvas>
+
+  <header id="top">
+    <div class="brand"><div class="seal">筑</div><h1>江山筑城</h1></div>
+    <div class="stats">
+      <div class="stat coin"><span>铜钱</span><b id="st-money">0</b><small id="st-income" title="上月赋税"></small></div>
+      <div class="stat"><span>人口</span><b id="st-pop">0</b></div>
+      <div class="stat"><span>粮仓</span><b id="st-food">0</b></div>
+      <div class="stat" title="货栈里的陶器 · 丝绸"><span>陶·丝</span><b id="st-goods">0 · 0</b></div>
+      <div class="stat" title="在岗 / 各作坊需要 · 闲置"><span>劳力</span><b id="st-labor">0/0</b><small id="st-idle"></small></div>
+      <div class="stat"><span>风水</span><b id="st-fs">—</b></div>
+    </div>
+    <div class="date"><span id="st-date"></span><small id="st-clock"></small></div>
+    <div class="spacer"></div>
+    <div class="seg" role="group" aria-label="速度">
+      <button id="sp-0" data-speed="0" title="暂停（空格）">停</button>
+      <button id="sp-1" data-speed="1">1×</button>
+      <button id="sp-2" data-speed="2">2×</button>
+      <button id="sp-4" data-speed="4">4×</button>
+    </div>
+    <div class="seg" role="group" aria-label="图层">
+      <button id="ov-water" title="显示水井与河水的供水范围">水源</button>
+      <button id="ov-fs" title="显示风水：绿为吉，红为凶">风水</button>
+      <button id="ov-flood" title="汛期会被淹的河滩（修河堤可保护周围三格）">汛险</button>
+      <button id="ov-flow" title="各条产业链的货物流向，卡住的环节标红（快捷键 G）">流向</button>
+    </div>
+    <div class="seg" role="group" aria-label="画面">
+      <button id="opt-paint" title="国画画意：设色、勾线、宣纸、水墨远山">画意</button>
+      <button id="opt-day" title="昼夜循环">昼夜</button>
+      <button id="opt-ink" title="水墨描边">描边</button>
+    </div>
+    <div class="seg" role="group" aria-label="面板">
+      <button id="opt-ledger" title="每月收支、货物产销、劳力去向">账簿</button>
+      <button id="opt-trade" title="设定商队买卖哪些货">商队</button>
+      <button id="opt-save" title="立即存档（每月也会自动存档）">存档</button>
+      <button id="opt-help" title="玩法说明">说明</button>
+    </div>
+    <button id="ai-stop" class="ai-chip" hidden title="停止 AI 自动经营，由你接手">AI 经营中 · 接手</button>
+  </header>
+
+  <aside id="goals" class="panel">
+    <h2 id="goals-title">营城之志</h2>
+    <ul id="goal-list"></ul>
+    <p id="goal-hint" class="goal-hint"></p>
+    <p id="goal-deadline" class="goal-deadline"></p>
+  </aside>
+
+  <aside id="trade" class="panel side" hidden>
+    <button class="close" id="trade-close" aria-label="关闭">×</button>
+    <h2>商队</h2>
+    <div id="trade-body"></div>
+  </aside>
+
+  <aside id="flow" class="panel side" hidden>
+    <button class="close" id="flow-close" aria-label="关闭">×</button>
+    <h2>产业链流向</h2>
+    <div id="flow-body"></div>
+  </aside>
+
+  <aside id="ledger" class="panel" hidden>
+    <button class="close" id="ledger-close" aria-label="关闭">×</button>
+    <h2>账簿</h2>
+    <div id="ledger-body"></div>
+  </aside>
+
+  <aside id="info" class="panel" hidden>
+    <button class="close" id="info-close" aria-label="关闭">×</button>
+    <h2 id="info-title"></h2>
+    <p id="info-sub"></p>
+    <div id="info-body"></div>
+  </aside>
+
+  <div id="toasts" aria-live="polite"></div>
+
+  <div id="bottom">
+    <div id="hint" class="panel"></div>
+    <nav id="tools" class="panel" aria-label="营造工具"></nav>
+  </div>
+
+  <div id="ctip" hidden></div>
+
+  <div id="intro" class="modal">
+    <div class="card">
+      <div class="head"><div class="seal">筑</div><div><h2>江山筑城</h2><p class="tag">背山面水，择地而居</p></div></div>
+      <p>你受命在河谷开辟一座新城。西边的官道会带来移民，你要为他们铺路、凿井、开田，让茅屋一步步变成宅院。</p>
+      <h3>粮食怎么到百姓手里</h3>
+      <div class="chain"><b>农田</b>→ 推车 →<b>粮仓</b>→ 挑夫 →<b>集市</b>→ 货郎沿街 →<b>民居</b></div>
+      <h3>货物</h3>
+      <div class="chain"><b>桑园</b>→ 蚕茧 →<b>丝坊</b>→ 丝绸 →<b>货栈</b>←<b>陶窑</b>（河边）</div>
+      <h3>民居升级</h3>
+      <div class="chain"><b>茅屋</b>水 + 粮 →<b>瓦舍</b>祭祀 + 风水 2.5 →<b>宅院</b>陶器 + 茶楼 + 风水 3.5 →<b>府邸</b>丝绸 + 风水 4.5 →<b>大宅</b></div>
+      <p style="margin-top:8px;color:var(--muted);font-size:13px">风水：靠山临水、园林、祠庙为吉；粮仓、集市、农田为凶。放置民居时会自动显示风水图。</p>
+      <h3>灾害与商队</h3>
+      <p style="color:var(--muted);font-size:13px">房屋会积累火险、年久失修：建水龙局（巡更、救火）和营缮所（修缮）。每逢汛年，四月预告、六月河边三格被淹，沿河筑堤可保护周围三格。建商栈后，商队每三个月从西边官道来一次，在「商队」面板设定出口和进口。</p>
+      <h3>关卡</h3>
+      <p style="color:var(--muted);font-size:13px">三个阶段：营城之志 → 兴业之志 → 繁华之志，须在第十二年腊月前全部完成。国库亏空超过 1000 文连续 4 个月会被革职。</p>
+      <h3>操作</h3>
+      <div class="keys">
+        <kbd>左键</kbd><span>建造；道路、民居、拆除可按住拖动</span>
+        <kbd>右键拖动 / WASD</kbd><span>平移视角</span>
+        <kbd>滚轮</kbd><span>缩放</span>
+        <kbd>Q / E · R / F</kbd><span>旋转 · 俯仰</span>
+        <kbd>1–9 · Esc · 空格</kbd><span>选工具 · 取消 · 暂停</span>
+        <kbd>触屏</kbd><span>单指建造或平移，双指缩放平移</span>
+      </div>
+      <button class="primary" id="intro-start">开 始 营 城</button>
+      <button class="secondary" id="intro-new" hidden>另起新城（清除存档）</button>
+      <button class="secondary" id="intro-ai">观看 AI 自动经营（随时可接手）</button>
+    </div>
+  </div>
+
+  <div id="won" class="modal" hidden>
+    <div class="card">
+      <div class="head"><div class="seal">成</div><div><h2 id="won-title">城池初成</h2><p class="tag" id="won-tag">营城之志均已达成</p></div></div>
+      <p id="won-text"></p>
+      <div id="won-stats" class="won-stats"></div>
+      <button class="primary" id="won-close">继 续 经 营</button>
+      <button class="secondary" id="won-restart" hidden>再 来 一 局</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

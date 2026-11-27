@@ -1,0 +1,19 @@
+{
+  "name": "jiangshan",
+  "version": "1.0.0",
+  "description": "江山筑城：一款原创的古代中国城市营造网页游戏 (three.js)",
+  "scripts": {
+    "dev": "python3 -m http.server 5173",
+    "build": "node tools/build.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "type": "module",
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
