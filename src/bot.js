@@ -242,10 +242,11 @@ export class Bot {
     const A = s.avgStats(3);
     const rich3 = this.houses.filter(h => h.level >= 3).reduce((a, h) => a + h.pop, 0);
     const rich4 = this.houses.filter(h => h.level >= 4).reduce((a, h) => a + h.pop, 0);
-    const potTarget = Math.max(s.stage === 1 ? 28 : 0, rich3 * 0.05 * 1.3 + 4);
+    const exportPush = s.stage === 2 && !s.goalsDone.has('trade') ? 22 : 0; // 为商队多烧一窑
+    const potTarget = Math.max(s.stage === 1 ? 28 : 0, rich3 * 0.05 * 1.3 + 4) + exportPush;
     const silkTarget = Math.max(s.stage === 1 ? 18 : 0, rich4 * 0.04 * 1.3 + 4);
     const kilns = this.B('kiln').length, silks = this.B('silk').length, muls = this.B('mulberry').length;
-    if (kilns < Math.min(4, Math.ceil(potTarget / 12)) && (this.build('kiln', 32, 22 + kilns * 2, 10, `陶器目标 ${Math.round(potTarget)}/月`) || this.build('kiln', 30, 29, 12, `陶器目标 ${Math.round(potTarget)}/月`))) return;
+    if (kilns < Math.min(6, Math.ceil(potTarget / 12)) && (this.build('kiln', 32, 22 + kilns * 2, 10, `陶器目标 ${Math.round(potTarget)}/月`) || this.build('kiln', 30, 29, 12, `陶器目标 ${Math.round(potTarget)}/月`))) return;
     if (muls < silks && (this.build('mulberry', 30, 19, 10, '给丝坊供蚕茧') || this.build('mulberry', 25, 18, 14, '给丝坊供蚕茧'))) return;
     if (silks < Math.min(4, Math.ceil(silkTarget / 10)) && (this.build('silk', 30, 27, 10, `丝绸目标 ${Math.round(silkTarget)}/月`) || this.build('silk', 24, 30, 14, `丝绸目标 ${Math.round(silkTarget)}/月`))) return;
     const whs = this.B('warehouse');

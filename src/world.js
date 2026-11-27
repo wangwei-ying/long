@@ -1,5 +1,5 @@
 // 世界：地形生成、格子数据、建筑占位、道路寻路、风水与水源计算
-import { N, BUILDINGS, FENGSHUI, T_GRASS, T_WATER, T_MOUNTAIN } from './config.js';
+import { N, BUILDINGS, FENGSHUI, T_GRASS, T_WATER, T_MOUNTAIN, WX_OF, WX_SHENG, WX_KE, FACING_WX, WX_EFFECT } from './config.js';
 import { makeNoise, smoothstep } from './noise.js';
 
 const EXT = 7; // 风水计算时向地图外延伸的格数（让边缘外的山也算数）
@@ -321,11 +321,92 @@ export class World {
   }
   inFloodZone(b) { return this.footprint(b.i, b.j, b.size).some(([x, y]) => this.floodRisk[this.idx(x, y)]); }
 
+  // ---------- 五行 ----------
+  // 民居朝向：朝着最近的道路（与渲染一致：先看南 +z，再东 +x、西 -x、北 -z）
+  houseFacing(b, roadAt = (x, y) => this.road[this.idx(x, y)]) {
+    const dirs = [[0, 1, 'S'], [1, 0, 'E'], [-1, 0, 'W'], [0, -1, 'N']];
+    for (let r = 1; r <= 2; r++) for (const [dx, dz, f] of dirs) {
+      const x = b.i + dx * r, z = b.j + dz * r;
+      if (this.inside(x, z) && roadAt(x, z)) return f;
+    }
+    return 'S';
+  }
+  // 每格的五行权重：河取最近一处、山取最近一处，树与建筑叠加
+  computeWuxing() {
+    const S = N * N, E = N + EXT * 2;
+    const w = this.wx = new Float32Array(S * 5);
+    const add = (cx, cy, el, s, r, mode) => {
+      const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(N - 1, Math.ceil(cx + r));
+      const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(N - 1, Math.ceil(cy + r));
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+        if (d > r + 0.5) continue;
+        const v = s * (1 - d / (r + 1)), k = (y * N + x) * 5 + el;
+        w[k] = mode === 'max' ? Math.max(w[k], v) : w[k] + v;
+      }
+    };
+    for (let j = 0; j < E; j++) for (let i = 0; i < E; i++) {
+      const t = this.extType[j * E + i];
+      if (t === T_WATER) add(i - EXT + 0.5, j - EXT + 0.5, 4, 1.5, 4, 'max');
+      else if (t === T_MOUNTAIN) add(i - EXT + 0.5, j - EXT + 0.5, 2, 1.3, 6, 'max');
+    }
+    const trees = new Float32Array(S);
+    for (let k = 0; k < S; k++) if (this.tree[k]) {
+      const cx = k % N + 0.5, cy = ((k / N) | 0) + 0.5;
+      for (let y = Math.floor(cy - 2); y <= cy + 2; y++) for (let x = Math.floor(cx - 2); x <= cx + 2; x++) {
+        if (!this.inside(x, y)) continue;
+        const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy); if (d > 2.5) continue;
+        trees[y * N + x] += 0.35 * (1 - d / 3);
+      }
+    }
+    for (let k = 0; k < S; k++) w[k * 5] += Math.min(1.2, trees[k]);
+    for (const b of this.buildings.values()) {
+      const el = WX_OF[b.type];
+      if (el == null) continue;
+      add(b.i + b.size / 2, b.j + b.size / 2, el, b.size >= 2 ? 1.8 : 1.2, 3, 'sum');
+    }
+  }
+  // 某格的主导五行：[五行, 强度]；强度不足 0.5 视为无
+  wxAt(i, j, extra = null) {
+    const k = (j * N + i) * 5;
+    let best = -1, bv = 0.5;
+    for (let e = 0; e < 5; e++) {
+      const v = this.wx[k + e] + (extra ? extra[e] : 0);
+      if (v > bv) { bv = v; best = e; }
+    }
+    return [best, bv];
+  }
+  // 民居的五行评定：坐向 → 自身五行；与周边主导五行的生克关系 → 风水加减
+  houseWuxing(b, extra = null, facing = null) {
+    const f = facing || this.houseFacing(b);
+    const self = FACING_WX[f];
+    const [env, strength] = this.wxAt(b.i, b.j, extra);
+    let rel = null;
+    if (env >= 0) {
+      if (env === self) rel = 'same';
+      else if (WX_SHENG[env] === self) rel = 'sheng';
+      else if (WX_KE[env] === self) rel = 'ke';
+      else if (WX_SHENG[self] === env) rel = 'xie';
+      else if (WX_KE[self] === env) rel = 'hao';
+    }
+    return { facing: f, self, env, strength, rel, delta: rel ? WX_EFFECT[rel] : 0 };
+  }
+  // 放一座建筑会给 (i,j) 这一格带来的五行权重（预览用）
+  wxExtraFor(type, bi, bj, size, i, j) {
+    const el = WX_OF[type];
+    const out = [0, 0, 0, 0, 0];
+    if (el == null) return out;
+    const d = Math.hypot(i + 0.5 - (bi + size / 2), j + 0.5 - (bj + size / 2));
+    if (d <= 3.5) out[el] = (size >= 2 ? 1.8 : 1.2) * (1 - d / 4);
+    return out;
+  }
+
   recomputeAll() {
     this.computeFlood();
     this.computeReach();
     this.computeWater();
     this.computeFengshui();
+    this.computeWuxing();
     this.emit('tiles');
   }
 }

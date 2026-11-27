@@ -150,5 +150,28 @@ const B = (w, t) => [...w.buildings.values()].filter(b => b.type === t);
   const w2 = new World(), s2 = new Sim(w2); s2.restore(data);
   check(B(w2, 'ruin').length === 1 && s2.trade.silk.keep === 33 && s2.record.burnt === 1, '存档后读档：废墟、商队设定、灾害记录都在');
 }
+// 10. 存档带上近几个月的产销统计（兴业之志的月产目标读档后不归零）
+{
+  const { w, s } = fresh();
+  s.apply('road', [[27, 24], [28, 24], [29, 24], [30, 24], [31, 24], [32, 24], [33, 24], [34, 24], [35, 24]]);
+  s.apply('kiln', [[33, 25]]); s.apply('warehouse', [[22, 25]]);
+  run(s, 6);
+  const before = s.avgStats(3).prod.pottery;
+  const w2 = new World(), s2 = new Sim(w2); s2.restore(JSON.parse(JSON.stringify(s.serialize())));
+  check(before > 0 && Math.abs(s2.avgStats(3).prod.pottery - before) < 1e-6, `读档后陶器月产仍是 ${before.toFixed(1)}（原来会归零）`);
+}
+// 11. 五行：坐向与生克
+{
+  const { w, s } = fresh();
+  run(s, 1);
+  const h = B(w, 'house').find(b => b.i === 8 && b.j === 23);
+  const info = w.houseWuxing(h);
+  check(info.facing === 'S' && info.self === 1, `北排民居朝南（道路在南）属火：${info.facing}/${info.self}`);
+  const g0 = h.fs;
+  s.apply('garden', [[8, 22]]); run(s, 0.1);
+  const info2 = w.houseWuxing(h);
+  check(info2.env === 0 && info2.rel === 'sheng' && info2.delta === 1, `旁边种园林后周边属木，木生火 +1（${info2.env}/${info2.rel}）`);
+  check(h.fs > g0 + 2, `园林让这户风水从 ${g0.toFixed(1)} 升到 ${h.fs.toFixed(1)}（形势 + 五行）`);
+}
 console.log(`\n${pass} 项通过，${fail} 项未通过`);
 process.exitCode = fail ? 1 : 0;

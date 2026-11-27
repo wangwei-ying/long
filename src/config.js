@@ -14,7 +14,7 @@ export const BUILDINGS = {
   road:    { name: '道路', glyph: '路', cost: 4, size: 1, key: '1', drag: 'line',
              desc: '按住拖动铺路。步行者只沿道路行走，道路须与西侧官道相连。' },
   house:   { name: '民居', glyph: '宅', cost: 12, size: 1, key: '2', drag: 'area',
-             desc: '划出宅地，移民入住后成茅屋。有水有粮升瓦舍；再得祭祀且风水 ≥ 2.5 升宅院。须在道路两格内。' },
+             desc: '划出宅地，须在道路两格内。移民入住成茅屋 →（水、粮）瓦舍 →（祭祀、风水 2.5）宅院 →（陶器、茶楼、风水 3.5）府邸 →（丝绸、风水 4.5）大宅。宅子朝向道路，坐向决定它的五行。' },
   well:    { name: '水井', glyph: '井', cost: 30, size: 1, key: '3', radius: 3,
              desc: '为半径 3 格内的民居供水。紧邻河流的民居也能取水。' },
   farm:    { name: '农田', glyph: '田', cost: 60, size: 3, key: '4', workers: 6,
@@ -105,6 +105,20 @@ export const FAITH_MONTHS = 8;    // 祭司经过后信仰维持的月数
 export const FENGSHUI_L3 = 2.5;
 
 // 风水来源：[强度, 半径]。山水取最大值，其余叠加
+// ---------- 五行 ----------
+// 0 木 1 火 2 土 3 金 4 水。生：木→火→土→金→水→木；克：木克土、火克金、土克水、金克木、水克火
+export const WX = ['木', '火', '土', '金', '水'];
+export const WX_COLOR = ['#3f8f5a', '#c8402e', '#d4a83a', '#e6e2d6', '#24324a'];
+export const WX_SHENG = [1, 2, 3, 4, 0];
+export const WX_KE = [2, 3, 4, 0, 1];
+export const WX_OF = { garden: 0, farm: 0, mulberry: 0, silk: 0, kiln: 1, teahouse: 1, temple: 1, granary: 2, levee: 2, repair: 2, ruin: 2, market: 3, warehouse: 3, tradepost: 3, well: 4, firehouse: 4 };
+// 民居按朝向定五行：朝南属火、朝东属木、朝西属金、朝北属水
+export const FACING_WX = { S: 1, E: 0, W: 3, N: 4 };
+export const FACING_NAME = { S: '朝南', E: '朝东', W: '朝西', N: '朝北' };
+// 周边五行对民居风水的加减
+export const WX_EFFECT = { sheng: 1.0, same: 0.5, xie: -0.3, hao: -0.3, ke: -1.0 };
+export const WX_REL_NAME = { sheng: '生', same: '比和', xie: '泄', hao: '耗', ke: '克' };
+
 export const FENGSHUI = {
   water: [3, 4], mountain: [2.5, 6], tree: [0.6, 2],
   garden: [3, 3], temple: [2, 4], house3: [0.6, 2],
@@ -120,7 +134,7 @@ export const STAGES = [
     hint: '先多开一块田；民居缺水就打井；修祠庙，在宅子旁种园林提升风水。',
     goals: [
       { id: 'pop', text: '人口达到 150', check: s => s.population >= 150, progress: s => `${s.population}/150` },
-      { id: 'l3', text: '建成 3 座宅院', check: s => s.countHouses(3) >= 3, progress: s => `${s.countHouses(3)}/3` },
+      { id: 'l3', text: '3 座民居升为宅院', level: 3, check: s => s.countHouses(3) >= 3, progress: s => `${s.countHouses(3)}/3` },
       { id: 'temple', text: '修建祠庙', check: s => s.countType('temple') >= 1, progress: s => `${s.countType('temple')}/1` },
     ] },
   { title: '兴业之志', done: '百业兴旺', doneText: '窑火不熄，机杼声声，水龙局与营缮所守着全城。最后一步：让城池繁华，与远方商队往来。',
@@ -128,14 +142,14 @@ export const STAGES = [
     goals: [
       { id: 'pottery', text: '陶器月产 ≥ 25', check: s => s.avgStats(3).prod.pottery >= 25, progress: s => `${Math.round(s.avgStats(3).prod.pottery)}/25` },
       { id: 'silkp', text: '丝绸月产 ≥ 16', check: s => s.avgStats(3).prod.silk >= 16, progress: s => `${Math.round(s.avgStats(3).prod.silk)}/16` },
-      { id: 'l4', text: '建成 6 座府邸', check: s => s.countHouses(4) >= 6, progress: s => `${s.countHouses(4)}/6` },
+      { id: 'l4', text: '6 座民居升为府邸', level: 4, check: s => s.countHouses(4) >= 6, progress: s => `${s.countHouses(4)}/6` },
       { id: 'safety', text: '修建水龙局与营缮所', check: s => s.countType('firehouse') >= 1 && s.countType('repair') >= 1, progress: s => `${Math.min(1, s.countType('firehouse')) + Math.min(1, s.countType('repair'))}/2` },
     ] },
   { title: '繁华之志', done: '郡城繁华', doneText: '陶器丝绸流通四方，大宅门前车马往来，商队岁岁不绝。这座河谷新城已是一方繁华之地。',
     hint: '多建民居补人口与劳力；丝绸供上大宅；建商栈，在「商队」里把多余的货卖出去。',
     goals: [
       { id: 'pop3', text: '人口达到 600', check: s => s.population >= 600, progress: s => `${s.population}/600` },
-      { id: 'l5', text: '建成 5 座大宅', check: s => s.countHouses(5) >= 5, progress: s => `${s.countHouses(5)}/5` },
+      { id: 'l5', text: '5 座民居升为大宅', level: 5, check: s => s.countHouses(5) >= 5, progress: s => `${s.countHouses(5)}/5` },
       { id: 'trade', text: '商队贸易收入 1500 文', check: s => s.record.tradeIncome >= 1500, progress: s => `${Math.min(1500, s.record.tradeIncome)}/1500` },
       { id: 'gold', text: '铜钱积累到 10000', check: s => s.money >= 10000, progress: s => `${Math.floor(s.money)}/10000` },
     ] },

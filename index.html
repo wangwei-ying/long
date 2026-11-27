@@ -121,7 +121,7 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .toast.warn { border-left-color: var(--warn); }
 .toast.out { opacity: 0; transform: translateX(-10px); }
 @keyframes tin { from { opacity: 0; transform: translateY(6px); } }
-#ctip { position: fixed; left: 0; top: 0; padding: 3px 8px; border-radius: 4px; background: var(--panel-solid); border: 1px solid var(--line); font-size: 12px; color: var(--gold); pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; z-index: 5; }
+#ctip { position: fixed; left: 0; top: 0; padding: 4px 9px; line-height: 1.55; white-space: pre !important; border-radius: 4px; background: var(--panel-solid); border: 1px solid var(--line); font-size: 12px; color: var(--gold); pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; z-index: 5; }
 #ctip.bad { color: var(--warn); }
 
 /* 开场与胜利 */
@@ -167,12 +167,38 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .won-stats b { color: var(--paper); font-weight: 500; font-variant-numeric: tabular-nums; }
 .ai-chip { background: rgba(196,70,47,.85); color: #fbefe0; border: 0; border-radius: var(--r); padding: 5px 10px; cursor: pointer; font-size: 13px; animation: pulse 2s infinite; }
 @keyframes pulse { 50% { opacity: .75; } }
+#tut { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); width: 300px; padding: 12px 14px; z-index: 3; border-color: rgba(214,168,76,.55); }
+#tut h2 { margin: 2px 0 6px; font: 17px/1.25 var(--font-display); letter-spacing: .08em; }
+#tut-text { margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-line; color: var(--paper); }
+.tut-step { margin: 0; font-size: 11px; color: var(--gold); letter-spacing: .1em; }
+.tut-status { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.tut-status.ok { color: var(--jade); }
+.tut-btns { display: flex; gap: 6px; margin-top: 10px; }
+.tut-btns .tut-next { margin-left: auto; color: var(--gold); border-color: rgba(214,168,76,.5); }
+.mini:disabled { opacity: .4; cursor: default; }
+.tut-pulse { box-shadow: 0 0 0 2px var(--gold), 0 0 14px 2px rgba(214,168,76,.8) !important; animation: tutp 1.2s ease-in-out infinite; position: relative; z-index: 2; }
+@keyframes tutp { 50% { box-shadow: 0 0 0 2px var(--gold), 0 0 4px 0 rgba(214,168,76,.3); } }
+.tut-cta { color: var(--gold) !important; border-color: rgba(214,168,76,.55) !important; }
+#wxlegend { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--top-h, 60px) + 6px); z-index: 4; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 6px 12px; font-size: 13px; max-width: calc(100% - 32px); }
+#wxlegend .wxrule { color: var(--muted); font-size: 12px; }
+.wxdot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: var(--c); margin-right: 4px; vertical-align: -1px; border: 1px solid rgba(255,255,255,.3); }
+.help-card { width: min(640px, 100%); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.hsec p { font-size: 13px; color: var(--paper); margin: 8px 0; max-width: none; }
+.hsec b { color: var(--gold); font-weight: 500; }
+.htable { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0; }
+.htable th { color: var(--muted); font-weight: 400; text-align: left; border-bottom: 1px solid var(--line); padding: 3px 4px; }
+.htable td { padding: 3px 4px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+#goal-list li { cursor: pointer; border-radius: 3px; }
+#goal-list li:hover { background: rgba(239,230,210,.07); }
 .tsep { flex: 0 0 1px; align-self: stretch; margin: 6px 3px; background: var(--line); }
 
 @media (max-width: 1440px) { .brand h1 { display: none; } #top { gap: 8px 10px; } }
 @media (max-width: 760px) {
   .brand h1 { display: none; }
   #goals { display: none; }
+  #tut { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; top: auto !important; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); }
+  #wxlegend { bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); }
   .side { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); max-height: 50%; }
   #ledger { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); max-height: 50%; }
   #info { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); max-height: 45%; overflow-y: auto; }
@@ -210,6 +236,7 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
     <div class="seg" role="group" aria-label="图层">
       <button id="ov-water" title="显示水井与河水的供水范围">水源</button>
       <button id="ov-fs" title="显示风水：绿为吉，红为凶">风水</button>
+      <button id="ov-wx" title="五行：青木 赤火 黄土 白金 黑水">五行</button>
       <button id="ov-flood" title="汛期会被淹的河滩（修河堤可保护周围三格）">汛险</button>
       <button id="ov-flow" title="各条产业链的货物流向，卡住的环节标红（快捷键 G）">流向</button>
     </div>
@@ -233,6 +260,23 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
     <p id="goal-hint" class="goal-hint"></p>
     <p id="goal-deadline" class="goal-deadline"></p>
   </aside>
+
+  <aside id="tut" class="panel" hidden>
+    <p id="tut-step" class="tut-step"></p>
+    <h2 id="tut-title"></h2>
+    <p id="tut-text"></p>
+    <p id="tut-status" class="tut-status"></p>
+    <div class="tut-btns">
+      <button class="mini" id="tut-prev">上一步</button>
+      <button class="mini" id="tut-skip">跳过教程</button>
+      <button class="mini tut-next" id="tut-next">下一步</button>
+    </div>
+  </aside>
+
+  <div id="wxlegend" class="panel" hidden>
+    <span><i class="wxdot" style="--c:#3f8f5a"></i>木</span><span><i class="wxdot" style="--c:#c8402e"></i>火</span><span><i class="wxdot" style="--c:#d4a83a"></i>土</span><span><i class="wxdot" style="--c:#e6e2d6"></i>金</span><span><i class="wxdot" style="--c:#24324a"></i>水</span>
+    <span class="wxrule">生：木→火→土→金→水→木　克：木克土 土克水 水克火 火克金 金克木　宅子朝南火 东木 西金 北水</span>
+  </div>
 
   <aside id="trade" class="panel side" hidden>
     <button class="close" id="trade-close" aria-label="关闭">×</button>
@@ -294,7 +338,83 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
       </div>
       <button class="primary" id="intro-start">开 始 营 城</button>
       <button class="secondary" id="intro-new" hidden>另起新城（清除存档）</button>
+      <button class="secondary tut-cta" id="intro-tut">新手教程（一步步带你建城，约 10 分钟）</button>
       <button class="secondary" id="intro-ai">观看 AI 自动经营（随时可接手）</button>
+    </div>
+  </div>
+
+
+  <div id="help" class="modal" hidden>
+    <div class="card help-card">
+      <div class="head"><div class="seal">册</div><div><h2>营城手册</h2><p class="tag">遇到不懂的，先翻这里</p></div></div>
+      <div class="tabs" role="tablist">
+        <button class="mini" data-tab="h-basic" aria-pressed="true">操作</button>
+        <button class="mini" data-tab="h-house" aria-pressed="false">民居</button>
+        <button class="mini" data-tab="h-fs" aria-pressed="false">风水</button>
+        <button class="mini" data-tab="h-wx" aria-pressed="false">五行</button>
+        <button class="mini" data-tab="h-chain" aria-pressed="false">产业</button>
+        <button class="mini" data-tab="h-risk" aria-pressed="false">灾害商队</button>
+        <button class="mini" data-tab="h-level" aria-pressed="false">关卡</button>
+      </div>
+      <section id="h-basic" class="hsec">
+        <div class="keys">
+          <kbd>左键</kbd><span>建造；道路、民居、拆除可按住拖动。没选工具时点建筑看详情</span>
+          <kbd>右键拖动 / WASD</kbd><span>平移视角</span>
+          <kbd>滚轮</kbd><span>缩放；拉近才看得到作坊里干活的工人</span>
+          <kbd>Q / E · R / F</kbd><span>旋转 · 俯仰</span>
+          <kbd>1–9 · Esc · 空格 · G</kbd><span>选工具 · 取消 · 暂停 · 流向图层</span>
+          <kbd>触屏</kbd><span>单指建造或平移，双指缩放平移</span>
+        </div>
+        <p>头顶印章：<b>火</b> 着火　<b>危</b> 快塌　<b>险</b> 火险高　<b>缺工 断料 满仓 无路</b> 作坊卡住　<b>饥 渴 衰</b> 民居缺粮、缺水、正在退级　<b>升</b> 正在升级。</p>
+      </section>
+      <section id="h-house" class="hsec" hidden>
+        <p>「宅院、府邸、大宅」都不是按钮，而是「民居」一步步升上去的：</p>
+        <div class="chain"><b>宅地</b>移民入住 →<b>茅屋</b>水 + 粮 →<b>瓦舍</b>祭祀 + 风水 2.5 →<b>宅院</b>陶器 + 茶楼 + 风水 3.5 →<b>府邸</b>丝绸 + 风水 4.5 →<b>大宅</b></div>
+        <p>水：水井覆盖半径 3 格，紧挨河的也算。粮、陶器、丝绸：集市的货郎沿街送到两格内的人家。祭祀：祠庙的祭司沿街巡游。娱乐：茶楼的说书人巡游。</p>
+        <p>点一座民居，面板最下面的「升级所需」会逐条列出还差什么。点左上角的目标，会高亮还差条件的人家。</p>
+      </section>
+      <section id="h-fs" class="hsec" hidden>
+        <p>风水 = <b>形势</b>（山水与周边建筑）+ <b>五行</b>（坐向与周边的生克）。顶栏「风水」看形势分布，绿吉红凶；选中建筑把光标放到地图上，会预览它让周边风水升降（绿 / 红斜纹）和受影响的人家。</p>
+        <table class="htable">
+          <tr><th>加分</th><th>紧挨时</th><th>范围</th><th>扣分</th><th>紧挨时</th><th>范围</th></tr>
+          <tr><td>园林</td><td>+2.3</td><td>3 格</td><td>粮仓、陶窑</td><td>−1.9</td><td>3 格</td></tr>
+          <tr><td>河水（最近一处）</td><td>+2.4</td><td>4 格</td><td>货栈、废墟</td><td>−1.0</td><td>2 格</td></tr>
+          <tr><td>山（最近一处）</td><td>+2.1</td><td>6 格</td><td>农田、集市</td><td>−0.8</td><td>2 格</td></tr>
+          <tr><td>祠庙</td><td>+1.4</td><td>4 格</td><td>丝坊</td><td>−0.3</td><td>1 格</td></tr>
+          <tr><td>茶楼</td><td>+1.0</td><td>3 格</td><td>道路（每格）</td><td>−0.1</td><td>1 格</td></tr>
+          <tr><td>树（合计至多 +2）</td><td>+0.4</td><td>2 格</td><td></td><td></td><td></td></tr>
+          <tr><td>宅院 / 府邸 / 大宅</td><td>+0.4～1.1</td><td>2～3 格</td><td></td><td></td><td></td></tr>
+        </table>
+        <p>门槛：宅院 2.5、府邸 3.5、大宅 4.5。最省钱的办法是在两排民居之间的空行里种园林；粮仓、陶窑、货栈放远一点。</p>
+      </section>
+      <section id="h-wx" class="hsec" hidden>
+        <p>每户民居朝向道路，坐向定它的五行：<b>朝南属火、朝东属木、朝西属金、朝北属水</b>。周边主导的五行与它的关系决定加减：</p>
+        <div class="keys">
+          <kbd>生它</kbd><span>+1.0（如木生火：朝南的宅子旁种园林）</span>
+          <kbd>同属</kbd><span>+0.5（比和）</span>
+          <kbd>它生 / 它克</kbd><span>−0.3（泄、耗）</span>
+          <kbd>克它</kbd><span>−1.0（如水克火：朝南的宅子紧挨河、井）</span>
+        </div>
+        <p>相生：木 → 火 → 土 → 金 → 水 → 木。相克：木克土、土克水、水克火、火克金、金克木。</p>
+        <p>周边五行来源：<span class="wxdot" style="--c:#3f8f5a"></span>木 树、园林、农田、桑园、丝坊　<span class="wxdot" style="--c:#c8402e"></span>火 陶窑、茶楼、祠庙　<span class="wxdot" style="--c:#d4a83a"></span>土 山、粮仓、河堤、营缮所　<span class="wxdot" style="--c:#e6e2d6"></span>金 集市、货栈、商栈　<span class="wxdot" style="--c:#24324a"></span>水 河、水井、水龙局。</p>
+        <p>顶栏「五行」按五色显示每处的主导五行；点一户民居可看到它的坐向与生克。</p>
+      </section>
+      <section id="h-chain" class="hsec" hidden>
+        <div class="chain"><b>农田</b>推车 →<b>粮仓</b>挑夫 →<b>集市</b>货郎 →<b>民居</b></div>
+        <div class="chain" style="margin-top:6px"><b>桑园</b>蚕茧 →<b>丝坊</b>丝绸 →<b>货栈</b>←<b>陶窑</b>（河边四格内）</div>
+        <p>每座作坊要有工人：茅屋瓦舍出工多，府邸大宅出工少；人不够时先保粮食。顶栏「账簿」看收支与产销，「流向」（G）看货物去向，红色闪烁处就是卡住的环节。</p>
+      </section>
+      <section id="h-risk" class="hsec" hidden>
+        <p><b>火</b>：建筑积累火险，陶窑最高。满了或运气差就起火，会蔓延，一个半月无人救就烧成废墟。<b>水龙局</b>的巡更人清火险，起火时派水龙队沿路去救。</p>
+        <p><b>失修</b>：坚固度慢慢下降，到零就倒塌。<b>营缮所</b>的匠人沿街修缮。</p>
+        <p><b>汛期</b>：汛年四月预告，六月河边三格被淹。顶栏「汛险」看哪里会淹，沿河修<b>河堤</b>保护周围三格。</p>
+        <p><b>商队</b>：建<b>商栈</b>后，商队每三个月从西边官道来；在「商队」面板设定每种货出口（至少留多少）或进口（补足到多少）。</p>
+      </section>
+      <section id="h-level" class="hsec" hidden>
+        <p>三个阶段：营城之志 → 兴业之志 → 繁华之志，须在第十二年腊月前全部完成。国库亏空超过 1000 文连续 4 个月会被革职。</p>
+        <p>每月自动存档到本浏览器，顶栏「存档」可手动存。换电脑、清除浏览器数据会丢失存档。</p>
+      </section>
+      <button class="primary" id="help-close">知 道 了</button>
     </div>
   </div>
 

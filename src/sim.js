@@ -174,9 +174,9 @@ export class Sim {
     const roads = []; for (let k = 0; k < W.road.length; k++) if (W.road[k]) roads.push(k);
     return {
       v: 3, seed: W.seed, money: this.money, t: this.t, stage: this.stage, goalsDone: [...this.goalsDone],
-      record: this.record, trade: this.trade, nextCaravan: this.nextCaravan, floodComing: this.floodComing, debtMonths: this.debtMonths, won: this.won, over: this.over,
+      record: this.record, trade: this.trade, history: this.history || [], cur: this.cur, nextCaravan: this.nextCaravan, floodComing: this.floodComing, debtMonths: this.debtMonths, won: this.won, over: this.over,
       nextId: W.nextId, roads, trees: Array.from(W.tree).join(''),
-      buildings: [...W.buildings.values()].map(b => { const o = { ...b }; delete o.status; return o; }),
+      buildings: [...W.buildings.values()].map(b => { const o = { ...b }; delete o.status; delete o.wxInfo; return o; }),
     };
   }
   restore(d) {
@@ -199,6 +199,8 @@ export class Sim {
     this.goalsDone = new Set(d.goalsDone || []);
     if (d.record) this.record = { ...this.record, ...d.record };
     if (d.trade) this.trade = d.trade;
+    this.history = d.history || [];
+    if (d.cur) this.cur = { ...this.blankStats(), ...d.cur };
     this.nextCaravan = d.nextCaravan ?? null; this.floodComing = d.floodComing ?? null; this.flood = null;
     this.debtMonths = d.debtMonths || 0; this.won = !!d.won; this.over = !!d.over;
     if (W.flooded) W.flooded.fill(0);
@@ -697,7 +699,10 @@ export class Sim {
   updateHouse(b, dt) {
     const k = this.w.idx(b.i, b.j);
     b.hasWater = this.w.water[k] > 0;
-    b.fs = this.w.fengshui[k];
+    // 风水 = 形势（山水、园林、作坊远近）+ 五行（坐向与周边的生克）
+    b.wxInfo = this.w.houseWuxing(b);
+    b.fsBase = this.w.fengshui[k];
+    b.fs = b.fsBase + b.wxInfo.delta;
     b.faith = b.faithUntil > this.t;
     b.fun = b.funUntil > this.t;
     let target;

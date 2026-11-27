@@ -7,6 +7,8 @@ import { UI } from './ui.js';
 import { seedStarter } from './scenario.js';
 import { Bot } from './bot.js';
 import { flowLinks } from './flow.js';
+import { fengshuiPreview } from './fsview.js';
+import { Tutorial } from './tutorial.js';
 import { BUILDINGS, TOOL_ORDER, N, START_MONEY } from './config.js';
 
 const SAVE_KEY = 'jiangshan-save-v2';
@@ -25,6 +27,7 @@ class Game {
     this.hover = null;
     this.pointers = new Map();
     this.ui = new UI(this);
+    this.tutorial = new Tutorial(this);
     this.initialTrees = Array.from(this.world.tree).join('');
     const saved = this.readSave();
     if (saved) {
@@ -94,16 +97,42 @@ class Game {
   }
   refreshFlow() { this.renderer.flow.build(flowLinks(this.sim)); }
 
+  startTutorial() {
+    this.stopAutoplay?.call(this, true);
+    this.newCity();
+    this.setSpeed(1);
+    this.tutorial.start();
+  }
+
+  // 点目标：高亮离目标最近、还差条件的民居，并说明差什么
+  focusGoal(id) {
+    const st = this.sim.stageInfo, g = st.goals.find(x => x.id === id);
+    if (!g) return;
+    if (!g.level) { this.ui.toast(`「${g.text}」：${st.hint}`, 'info'); return; }
+    const hs = [...this.world.buildings.values()].filter(b => b.type === 'house' && b.level === g.level - 1);
+    if (!hs.length) { this.ui.toast(`还没有${['', '', '', '瓦舍', '宅院', '府邸'][g.level]}可以升级：先让民居升到上一级`, 'info'); return; }
+    const tally = {};
+    for (const h of hs) for (const n of this.sim.houseNeeds(h)) { const key = n.replace(/（.*）/, ''); tally[key] = (tally[key] || 0) + 1; }
+    const top = Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}（${v} 户）`).join('；');
+    this.renderer.setPreview([], [], hs.map(h => [h.i, h.j]));
+    clearTimeout(this.focusTimer);
+    this.focusTimer = setTimeout(() => this.refreshPreview(), 6000);
+    let x = 0, z = 0; for (const h of hs) { x += h.i; z += h.j; }
+    this.rig.goal.set(x / hs.length + 0.5 - N / 2, 0, z / hs.length + 0.5 - N / 2);
+    this.ui.toast(`${hs.length} 户可升${['', '', '', '宅院', '府邸', '大宅'][g.level]}（已高亮）。还差：${top || '条件已满足，等一会儿就升'}`, 'good');
+  }
+
   // AI 自动经营：每半个月让自动玩家看一眼、做决定
   startAutoplay() {
     this.bot = new Bot(this.sim, t => this.ui.toast('AI：' + t, 'info'));
     this.setSpeed(4);
     document.getElementById('ai-stop').hidden = false;
   }
-  stopAutoplay() {
+  stopAutoplay(silent) {
+    const was = !!this.bot;
     this.bot = null;
     document.getElementById('ai-stop').hidden = true;
-    this.ui.toast('已由你接手经营', 'good');
+    if (was && !silent) this.ui.toast('已由你接手经营', 'good');
   }
 
   toggleOverlay(n) { this.overlayUser = this.overlayUser === n ? 0 : n; this.applyOverlay(); this.ui.syncToggles(); }
@@ -188,7 +217,8 @@ class Game {
     if (e.target !== this.canvas && !p) { this.ui.cursorTip(0, 0, null); return; }
     const t = this.pickTile(e);
     this.mouse = { x: e.clientX, y: e.clientY };
-    const changed = !this.hover || !t || t.i !== this.hover.i || t.j !== this.hover.j;
+    const ak = p => p ? this.anchor(p).join(',') : '';
+    const changed = !this.hover || !t || t.i !== this.hover.i || t.j !== this.hover.j || ak(t) !== ak(this.hover);
     this.hover = t;
     if (this.drag && t) { this.drag.end = t; if (t.i !== this.drag.start.i || t.j !== this.drag.start.j) this.drag.moved = true; }
     if (changed) this.refreshPreview();
@@ -216,10 +246,11 @@ class Game {
     this.refreshPreview(true);
   }
 
+  // 建筑以光标为中心：2×2、3×3 的建筑也落在光标正下方
   anchor(t) {
     const size = BUILDINGS[this.tool].size;
-    const off = Math.floor((size - 1) / 2);
-    return [t.i - off, t.j - off];
+    if (size === 1 || t.x == null) return [t.i - Math.floor((size - 1) / 2), t.j - Math.floor((size - 1) / 2)];
+    return [Math.round(t.x + N / 2 - size / 2), Math.round(t.z + N / 2 - size / 2)];
   }
 
   toolTiles(a, b) {
@@ -249,11 +280,12 @@ class Game {
   refreshPreview() {
     const R = this.renderer, W = this.world;
     const t = this.drag ? this.drag.end : this.hover;
-    if (!t) { R.setPreview(); R.setGhost(null); this.ui.cursorTip(0, 0, null); return; }
+    if (!t) { R.setPreview(); R.setGhost(null); R.setFsDelta(null); this.ui.cursorTip(0, 0, null); return; }
     if (this.tool === 'select') {
       const b = W.buildingAt(t.i, t.j);
       R.setPreview([], [], b ? W.footprint(b.i, b.j, b.size) : [[t.i, t.j]]);
       R.setGhost(null);
+      R.setFsDelta(null);
       this.ui.cursorTip(0, 0, null);
       return;
     }
@@ -285,6 +317,14 @@ class Game {
     const c = this.sim.costOf(this.tool, tiles);
     this.tipText = c.ok ? `${c.cost} 文${c.ok > 1 ? ` · ${c.ok} 处` : ''}${c.cost > this.sim.money ? ' · 铜钱不足' : ''}` : c.reason;
     this.tipBad = !c.ok || c.cost > this.sim.money;
+    // 风水预览：地面红绿着色 + 光标旁说明
+    const [pi, pj] = tiles[0] || [t.i, t.j];
+    if (this.tool !== 'road' && W.canPlace(this.tool, pi, pj).ok) {
+      const fv = fengshuiPreview(W, this.sim, this.tool, pi, pj);
+      R.setFsDelta(fv.cells);
+      if (fv.lines.length) this.tipText += '\n' + fv.lines.join('\n');
+      this.lastFsPreview = fv;
+    } else R.setFsDelta(null);
     this.positionTip();
   }
 

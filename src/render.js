@@ -95,6 +95,10 @@ export class Renderer {
     this.hazTex = new THREE.DataTexture(this.hazData, N, N, THREE.RGBAFormat);
     this.hazTex.magFilter = this.hazTex.minFilter = THREE.LinearFilter;
     this.hazTex.needsUpdate = true;
+    this.wxData = new Uint8Array(N * N * 4);
+    this.wxTex = new THREE.DataTexture(this.wxData, N, N, THREE.RGBAFormat);
+    this.wxTex.magFilter = this.wxTex.minFilter = THREE.LinearFilter;
+    this.wxTex.needsUpdate = true;
   }
 
   updateHazards() {
@@ -102,8 +106,20 @@ export class Renderer {
     for (let k = 0; k < N * N; k++) {
       d[k * 4] = W.flooded && W.flooded[k] ? 255 : 0;
       d[k * 4 + 1] = W.floodRisk && W.floodRisk[k] ? 255 : 0;
+      if (!(this.deltaDirty || []).includes(k)) d[k * 4 + 2] = 128;
     }
     this.hazTex.needsUpdate = true;
+    // 五行：每格主导五行的颜色，透明度表示强弱
+    if (W.wx) {
+      const wd = this.wxData;
+      const cols = [[63, 143, 90], [200, 64, 46], [212, 168, 58], [236, 232, 222], [24, 40, 74]];
+      for (let k = 0; k < N * N; k++) {
+        const [e, v] = W.wxAt(k % N, (k / N) | 0);
+        const c = e >= 0 ? cols[e] : [0, 0, 0];
+        wd.set([c[0], c[1], c[2], e >= 0 ? Math.round(Math.min(1, 0.45 + (v - 0.5) / 1.5) * 255) : 0], k * 4);
+      }
+      this.wxTex.needsUpdate = true;
+    }
   }
 
   updateTiles() {
@@ -163,7 +179,7 @@ export class Renderer {
 
     this.tu = {
       uTiles: { value: this.tileTex }, uPreview: { value: this.prevTex }, uN: { value: N },
-      uOverlay: { value: 0 }, uGrid: { value: 0 }, uTime: { value: 0 }, uHaz: { value: this.hazTex }, uFlood: { value: 0 },
+      uOverlay: { value: 0 }, uGrid: { value: 0 }, uTime: { value: 0 }, uHaz: { value: this.hazTex }, uFlood: { value: 0 }, uWx: { value: this.wxTex }, uDelta: { value: 0 },
     };
     const mat = new THREE.MeshStandardMaterial({ roughness: 0.95, metalness: 0 });
     mat.onBeforeCompile = sh => {
@@ -173,7 +189,7 @@ export class Renderer {
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vWN = normalize(mat3(modelMatrix) * objectNormal);');
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
-uniform sampler2D uTiles; uniform sampler2D uPreview; uniform sampler2D uHaz; uniform float uN, uOverlay, uGrid, uTime, uFlood;
+uniform sampler2D uTiles; uniform sampler2D uPreview; uniform sampler2D uHaz; uniform sampler2D uWx; uniform float uN, uOverlay, uGrid, uTime, uFlood, uDelta;
 varying vec3 vWPos; varying vec3 vWN;
 ${NOISE_GLSL}`)
         .replace('#include <color_fragment>', /* glsl */`
@@ -219,9 +235,22 @@ ${NOISE_GLSL}`)
   }
   // 汛险图层（斜线）与正在被淹的河滩（浑水 + 波纹）
   vec4 Hz = texture2D(uHaz, uvT) * inside;
-  if (uOverlay > 2.5) {
+  if (uOverlay > 3.5) {
+    // 五行图层：青木 赤火 黄土 白金 黑水
+    vec4 Wx = texture2D(uWx, uvT) * inside;
+    vec2 g0 = abs(fract(tp) - 0.5);
+    vec3 wc = pow(Wx.rgb, vec3(2.2)) * 1.25;
+    float edge = smoothstep(0.42, 0.5, max(g0.x, g0.y));
+    col = mix(col * 0.55, wc, Wx.a * 0.9) * (1.0 - edge * 0.25 * Wx.a);
+  } else if (uOverlay > 2.5) {
     float hatch = step(0.5, fract((tp.x + tp.y) * 2.0));
     col = mix(col, mix(vec3(0.1, 0.35, 0.95), vec3(0.03, 0.15, 0.6), hatch), Hz.g * 0.72);
+  }
+  // 放置预览：这座建筑让周边风水升（绿）或降（红）
+  if (uDelta > 0.5) {
+    float dv = (Hz.b * 255.0 - 128.0) / 40.0 * inside;
+    float stripe = 0.75 + 0.25 * step(0.5, fract((tp.x - tp.y) * 2.5 + uTime * 0.6));
+    col = mix(col, dv > 0.0 ? vec3(0.15, 0.75, 0.3) : vec3(0.95, 0.2, 0.12), min(1.0, abs(dv) / 2.2) * 0.65 * stripe);
   }
   float fl = smoothstep(0.25, 0.6, Hz.r) * uFlood;
   if (fl > 0.0) {
@@ -392,13 +421,42 @@ ${NOISE_GLSL}`)
 
   // ---------- 建筑 ----------
   houseFacing(b) {
-    const W = this.world;
-    const dirs = [[0, 1, 0], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2], [0, -1, Math.PI]];
-    for (let r = 1; r <= 2; r++) for (const [dx, dz, ry] of dirs) {
-      const x = b.i + dx * r, z = b.j + dz * r;
-      if (W.inside(x, z) && W.road[W.idx(x, z)]) return ry;
+    return { S: 0, E: Math.PI / 2, W: -Math.PI / 2, N: Math.PI }[this.world.houseFacing(b)];
+  }
+
+  // 教程标记：地上一圈光环 + 上下浮动的箭头
+  setMarker(i, j, size = 1) {
+    if (!this.marker) {
+      const g = new THREE.Group();
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.52, 40), new THREE.MeshBasicMaterial({ color: 0xffc04a, transparent: true, opacity: 0.9, depthTest: false }));
+      ring.rotation.x = -Math.PI / 2; ring.renderOrder = 30; g.add(ring);
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+      const x = cv.getContext('2d');
+      x.fillStyle = '#c4462f'; x.beginPath(); x.moveTo(64, 120); x.lineTo(20, 60); x.lineTo(48, 60); x.lineTo(48, 8); x.lineTo(80, 8); x.lineTo(80, 60); x.lineTo(108, 60); x.closePath(); x.fill();
+      x.strokeStyle = '#fbefe0'; x.lineWidth = 6; x.stroke();
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const arrow = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+      arrow.scale.setScalar(0.6); arrow.renderOrder = 31; g.add(arrow);
+      g.userData = { ring, arrow };
+      this.scene.add(g);
+      this.marker = g;
     }
-    return 0;
+    const m = this.marker;
+    m.visible = true;
+    m.position.set(i + size / 2 - N / 2, 0.05, j + size / 2 - N / 2);
+    m.userData.ring.scale.setScalar(Math.max(1, size * 0.9));
+    m.userData.size = size;
+  }
+  clearMarker() { if (this.marker) this.marker.visible = false; }
+
+  // 放置预览：建筑对周边风水的增减（地面红绿着色）
+  setFsDelta(cells) {
+    const d = this.hazData;
+    for (const k of this.deltaDirty || []) d[k * 4 + 2] = 128;
+    this.deltaDirty = [];
+    for (const [k, v] of cells || []) { d[k * 4 + 2] = Math.max(0, Math.min(255, Math.round(128 + v * 40))); this.deltaDirty.push(k); }
+    this.tu.uDelta.value = cells && cells.length ? 1 : 0;
+    this.hazTex.needsUpdate = true;
   }
 
   addBuilding(b, animate = false) {
@@ -583,6 +641,11 @@ ${NOISE_GLSL}`)
 
     this.tu.uFlood.value += ((this.sim.flood ? 1 : 0) - this.tu.uFlood.value) * Math.min(1, dt * 1.5);
     this.flow.update(this.time);
+    if (this.marker && this.marker.visible) {
+      const s = this.marker.userData.size || 1;
+      this.marker.userData.arrow.position.y = 0.9 + s * 0.3 + Math.abs(Math.sin(this.time * 3)) * 0.25;
+      this.marker.userData.ring.material.opacity = 0.55 + 0.4 * Math.sin(this.time * 4);
+    }
     if ((this.frameNo = (this.frameNo || 0) + 1) % 3 === 1) this.renderer.shadowMap.needsUpdate = true;
     this.post.render(this.scene);
   }

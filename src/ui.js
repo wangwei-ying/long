@@ -1,6 +1,7 @@
 // 界面：顶栏数据、工具栏、建筑详情、目标、消息
 import { BUILDINGS, TOOL_GROUPS, HOUSE_LEVELS, STAGES, FENGSHUI_L3, TRADE, DEADLINE_YEARS } from './config.js';
 import { flowLinks, CHAINS } from './flow.js';
+import { describeWx } from './fsview.js';
 
 const GOODS = [['food', '粮食', 20], ['pottery', '陶器', 10], ['silk', '丝绸', 10], ['cocoon', '蚕茧', 10]];
 
@@ -31,6 +32,13 @@ export class UI {
     $('#won-close').addEventListener('click', () => { $('#won').hidden = true; });
     $('#won-restart').addEventListener('click', () => { this.game.newCity(); $('#won').hidden = true; });
     $('#intro-ai').addEventListener('click', () => { $('#intro').hidden = true; this.game.startAutoplay(); });
+    $('#intro-tut').addEventListener('click', () => { $('#intro').hidden = true; this.game.startTutorial(); });
+    $('#tut-prev').addEventListener('click', () => this.game.tutorial.go(-1));
+    $('#tut-next').addEventListener('click', () => this.game.tutorial.next());
+    $('#tut-skip').addEventListener('click', () => this.game.tutorial.stop());
+    $('#help-close').addEventListener('click', () => { $('#help').hidden = true; });
+    document.querySelectorAll('#help [data-tab]').forEach(b => b.addEventListener('click', () => this.helpTab(b.dataset.tab)));
+    $('#goal-list').addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (li) this.game.focusGoal(li.dataset.id); });
     $('#ai-stop').addEventListener('click', () => this.game.stopAutoplay());
     $('#trade-close').addEventListener('click', () => this.showSide(null));
     $('#flow-close').addEventListener('click', () => this.game.setFlow(false));
@@ -73,12 +81,13 @@ export class UI {
     $('#ov-water').addEventListener('click', () => this.game.toggleOverlay(1));
     $('#ov-fs').addEventListener('click', () => this.game.toggleOverlay(2));
     $('#ov-flood').addEventListener('click', () => this.game.toggleOverlay(3));
+    $('#ov-wx').addEventListener('click', () => this.game.toggleOverlay(4));
     $('#ov-flow').addEventListener('click', () => this.game.setFlow(!this.game.flowOn));
     $('#opt-trade').addEventListener('click', () => this.showSide($('#trade').hidden ? 'trade' : null));
     $('#opt-day').addEventListener('click', () => { const r = this.game.renderer; r.dayCycle = !r.dayCycle; if (!r.dayCycle) r.dayTime = 0.36; this.syncToggles(); });
     $('#opt-paint').addEventListener('click', () => { const r = this.game.renderer; r.paint = !r.paint; this.syncToggles(); });
     $('#opt-ink').addEventListener('click', () => { const r = this.game.renderer; r.ink = !r.ink; this.syncToggles(); });
-    $('#opt-help').addEventListener('click', () => { $('#intro').hidden = false; });
+    $('#opt-help').addEventListener('click', () => this.openHelp());
     $('#opt-save').addEventListener('click', () => this.game.save(false));
     $('#opt-ledger').addEventListener('click', () => this.showLedger($('#ledger').hidden));
     $('#ledger-close').addEventListener('click', () => this.showLedger(false));
@@ -90,6 +99,8 @@ export class UI {
     $('#ov-water').setAttribute('aria-pressed', g.overlayUser === 1);
     $('#ov-fs').setAttribute('aria-pressed', g.overlayUser === 2);
     $('#ov-flood').setAttribute('aria-pressed', g.overlayUser === 3);
+    $('#ov-wx').setAttribute('aria-pressed', g.overlayUser === 4);
+    $('#wxlegend').hidden = g.overlayUser !== 4;
     $('#ov-flow').setAttribute('aria-pressed', !!g.flowOn);
     $('#opt-trade').setAttribute('aria-pressed', !$('#trade').hidden);
     $('#opt-day').setAttribute('aria-pressed', r.dayCycle);
@@ -138,6 +149,12 @@ export class UI {
     if (which === 'trade') this.renderTrade();
     if (which === 'flow') this.renderFlow();
     this.syncToggles();
+  }
+
+  openHelp(tab = 'h-basic') { $('#help').hidden = false; this.helpTab(tab); }
+  helpTab(id) {
+    document.querySelectorAll('#help .hsec').forEach(s => { s.hidden = s.id !== id; });
+    document.querySelectorAll('#help [data-tab]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === id));
   }
 
   showModal(o) {
@@ -261,10 +278,20 @@ export class UI {
   renderGoals() {
     const st = STAGES[Math.min(this.sim.stage, STAGES.length - 1)];
     $('#goals-title').textContent = st.title;
-    $('#goal-list').innerHTML = st.goals.map(g => {
+    // 列表只在换阶段时重建，平时原地更新文字（否则点击会因元素被替换而失效）
+    const ul = $('#goal-list');
+    if (ul.dataset.stage !== st.title) {
+      ul.dataset.stage = st.title;
+      ul.innerHTML = st.goals.map(g => `<li data-id="${g.id}" title="点一下：看看该怎么做"><span class="tick"></span>${g.text}<span class="gp"></span></li>`).join('');
+    }
+    for (const g of st.goals) {
+      const li = ul.querySelector(`li[data-id="${g.id}"]`);
+      if (!li) continue;
       const done = this.sim.goalsDone.has(g.id);
-      return `<li class="${done ? 'done' : ''}"><span class="tick">${done ? '✓' : '○'}</span>${g.text}<span class="gp">${g.progress(this.sim)}</span></li>`;
-    }).join('');
+      li.classList.toggle('done', done);
+      li.querySelector('.tick').textContent = done ? '✓' : '○';
+      li.querySelector('.gp').textContent = g.progress(this.sim);
+    }
     const s = this.sim;
     $('#goal-hint').textContent = s.won ? '全部完成，可以继续自由经营。' : st.hint || '';
     const left = Math.max(0, Math.ceil(s.deadlineT - s.t));
@@ -301,7 +328,9 @@ export class UI {
         row('娱乐', b.fun ? '已满足' : '无', b.fun ? 'ok' : 'bad');
       }
       if (b.level >= 4) row('丝绸', `${Math.floor(b.silk)}`, b.silk > 0 ? 'ok' : 'bad');
-      row('风水', fs.toFixed(1), fs >= FENGSHUI_L3 ? 'ok' : fs < 0 ? 'bad' : '');
+      const tot = b.fs ?? fs, wx = b.wxInfo;
+      row('风水', `${tot.toFixed(1)}（形势 ${fs.toFixed(1)} · 五行 ${wx ? (wx.delta >= 0 ? '+' : '') + wx.delta : 0}）`, tot >= FENGSHUI_L3 ? 'ok' : tot < 0 ? 'bad' : '');
+      if (wx) row('五行', describeWx(wx), wx.delta > 0 ? 'ok' : wx.delta < 0 ? 'bad' : '');
       row('每月赋税', `${Math.round(b.pop * L.tax)} 文`);
       const needs = this.sim.houseNeeds(b);
       if (b.level < 5 && needs.length) rows.push(`<div class="needs"><span>升级所需</span><ul>${needs.map(n => `<li>${n}</li>`).join('')}</ul></div>`);
@@ -348,6 +377,9 @@ export class UI {
     if (!$('#ledger').hidden) this.renderLedger();
     if (!$('#trade').hidden) this.renderTrade();
     if (!$('#flow').hidden) this.renderFlow();
+    // 教程面板放在目标面板下面
+    if (!$('#tut').hidden && innerWidth > 760) { const gp = $('#goals'); $('#tut').style.top = `${gp.offsetTop + gp.offsetHeight + 8}px`; }
+    this.game.tutorial?.tick();
     $('#st-date').textContent = s.dateText();
     let fsSum = 0, n = 0;
     for (const b of this.world.buildings.values()) if (b.type === 'house') { fsSum += this.world.fengshui[this.world.idx(b.i, b.j)]; n++; }
